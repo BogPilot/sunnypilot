@@ -1,86 +1,76 @@
 # AP1 Model S port note
 
-This is not a driveable Tesla port. Nothing here was road-tested. Do not install this branch to drive.
+**Not road-tested on this SunnyTesla branch.** BogPilot `ap1-driving-milestone-1`
+(`013f1ffa`) was driven on 2026-10-04. This port wires that behavior into
+sunnypilot's opendbc layout. Do not treat green unit tests as permission to drive.
 
-Base: sunnypilot `master` `a5f44653d7f43ad57fef2f546f3916ec4cbf3c56`
-(`mici: add a refresh models button to the models panel (#2018)`).
+## Base
 
-opendbc submodule pin (not modified): `f95f996f5917dcbbf2e32fe51b606a24cf836af6`
-panda submodule pin (not modified): `74a0adced421e8b7acd728d0f9988ce225423f13`
+- SunnyTesla `sunny-tesla` on sunnypilot `master` `a5f44653`
+- opendbc submodule: BogPilot fork (see `.gitmodules`), carrying AP1 car + safety
+- panda submodule: unchanged pin `74a0adce` (safety is compiled from opendbc)
 
-Source of the AP1 behavior: BogPilot/openpilot `bogpilot-tesla` through `013f1ffa`
-(hands-on unlatch is `4595909a`). The startup-alert text change in `013f1ffa` was
-not ported. It is FrogPilot UI.
+## Flag bit mapping
 
-## Why a blind copy is wrong
+| Meaning | BogPilot panda | SunnyTesla / sunnypilot opendbc |
+| --- | --- | --- |
+| Longitudinal | bit 1 value **2** | bit 0 value **1** (`LONG_CONTROL`) |
+| FSD 14 | (n/a in BogPilot) | bit 1 value **2** |
+| Raven | bit 2 value **4** | (not used for AP1) |
+| AP1 | bit 3 value **8** | bit 8 value **0x100** |
 
-sunnypilot's Tesla support is comma's Model 3 / Model Y / Model X HW3-HW4 port.
-It lives in the opendbc submodule, not in `selfdrive/car/tesla/` the way FrogPilot
-0.9.7 does.
+AP1 chassis long safetyParam = `AP1 | LONG_CONTROL` = **0x101**.
 
-- Fingerprint is EPS firmware at `0x730` (`TeM3_` / `TeMYG4_` strings), merged with
-  `opendbc/sunnypilot/car/tesla/fingerprints_ext.py`. There is no AP1 CAN fingerprint.
-- Buses: party `0`, vehicle `1`, autopilot party `2`. DAS `0x2b9` and `0x488` are
-  checked on bus 2 in `opendbc/safety/modes/tesla.h`.
-- AP1 Model S (BogPilot / Tinkla) is chassis bus 0: `0x45` stalk, `0x2b9` chassis
-  DAS_control, `0x488` chassis steering. `0x2bf` (powertrain DAS_control) and
-  `0x2b9f` are not required.
-- Angle limits differ. sunnypilot `CarControllerParams.ANGLE_LIMITS` is
-  `MAX_ANGLE_RATE = 5` deg per 20 ms frame. Tinkla's AP1 panda table is speeds
-  `{2, 7, 17}` m/s, up `{8, 4, 2.5}`, down `{9, 5, 4.5}`.
-- Safety flag bits differ and must not be mixed.
-  sunnypilot `TeslaSafetyFlags`: `LONG_CONTROL = 1`, `FSD_14 = 2`.
-  BogPilot panda: `POWERTRAIN = 1`, `LONGITUDINAL_CONTROL = 2`, `RAVEN = 4`,
-  `AP1 = 8`. AP1 chassis long is `8|2 = 10`, with powertrain left unset.
-  Putting `10` into the sunnypilot safety param would mean `LONG_CONTROL|FSD_14`,
-  which is a Model 3/Y mode, not AP1.
-- DBCs differ (`tesla_model3_party` / `tesla_model3_vehicle` vs `tesla_can` /
-  `tesla_powertrain`). Copying BogPilot `teslacan.py` into this tree would pack
-  the wrong signals.
+Do **not** put BogPilot's value `10` into sunnypilot's Tesla safety param. That
+would mean `LONG_CONTROL | FSD_14` here.
 
-Registering `TESLA_AP1_MODELS` on the existing `CarInterface` would select
-`SafetyModel.tesla` (the party-bus mode) and could open Model 3 longitudinal.
-That was not done.
+## What is wired
 
-## What landed
+1. **Platform** `CAR.TESLA_AP1_MODELS` in opendbc (`tesla_can.dbc` on `Bus.chassis`).
+2. **Selection**: set Vehicle → `Tesla AP1 Model S` (CarPlatformBundle / fixed
+   fingerprint). There is no FW_VERSIONS row and no legacy CAN fingerprint list.
+   Live bus 0 should still show `0x45`, `0x2b9`, `0x488`.
+3. **CarState / CarController / packer** for `0x488`, `0x2b9`, `0x45` cancel,
+   `0x349` all-zero Hold clear. Hands ≥ 2 pause (type NONE, cruise kept). EPAS
+   code 6 and latched code 3 are not temporary faults; ANGLE resumes once hands
+   < 2. EAC_FAULT disables. Tinkla angle-rate table + ±20° clip.
+4. **Panda safety** (`opendbc/safety/modes/tesla_ap1.h`): AP1 TX allowlist,
+   interceptor forward hook (0x488 within 100 ms; 0x2b9 within 50 ms with long
+   flag and no stock AEB). Model 3/Y path unchanged when AP1 bit is clear.
+5. **controlsd**: AP1 hands-on clears `latActive` (flag `0x100`).
+6. **Stalk → personality**: DTR_Dist_Rq changes emit `gapAdjustCruise` button
+   events so sunnypilot cycles `LongitudinalPersonality`. Exact detent → follow
+   seconds (BogPilot `speedOffset` / FrogPilotFollowing) has **no** sunnypilot
+   consumer; helpers remain in `ap1_stalk_follow.py`.
 
-Unwired Python under `openpilot/sunnypilot/selfdrive/car/tesla_ap1/`. It is not
-imported by card, CarInterface, or safety.
+## What is not wired / still blocks a naïve install
 
-- Chassis fingerprint: bus 0 must include `0x45`, `0x2b9`, and `0x488`. Extra
-  addresses are allowed. `0x2bf` and `0x2b9f` are not required and are not
-  sufficient. The same three IDs on bus 1 or 2 do not match.
-- Recognition does not allow longitudinal (`long_control_allowed` is false).
-- `flags.py` records the BogPilot bit values only. It is not passed to panda.
-- Hands-on pause at level >= 2: lateral plan goes to control type NONE, cruise
-  is not cancelled.
-- EPAS code 6 (`EAC_ERROR_HIGH_ANGLE_REQ`) and latched code 3
-  (`EAC_ERROR_HANDS_ON`) are not temporary faults on AP1, so once hands are
-  below 2 and it is not `EAC_FAULT` the decision is ANGLE. Other non-idle names
-  still warn. Model 3/Y (`chassis_das_only` false) does not take that fallback.
-- Stalk `DTR_Dist_Rq` detent map (0, 33, 66, 100, 133, 166, 200, SNA 255) to
-  follow seconds. Those numbers are the FrogPilot default follow times, not a
-  new CAN scale.
-- Hold-clear *decision* (`ap1_should_send_hold_clear`) and rewriting camera
-  ACC_HOLD (3) to ACC_ON (4) for AP1 chassis long. The `0x349` frame is not packed.
-- Angle step in this helper uses the Tinkla lookup above, then +/- 20 deg around
-  the measured wheel. BogPilot's Python `CarControllerParams` still uses the
-  shared non-AP1 table (`0/5/15` m/s). This helper does not.
+- **Panda firmware on device**: you must build and flash panda from this tree
+  (opendbc safety is compiled into panda). No new signing keys; debug cert only
+  unless you set `RELEASE` + `CERT`.
+- **Alpha longitudinal**: must be enabled for chassis `0x2b9` / Hold clear.
+  Without it, safetyParam is AP1-only (`0x100`) and long TX is rejected.
+- **Instrument cluster frames**: not ported.
+- **Stock Autosteer lockout**: not ported (user declined).
+- **Radar**: `radarUnavailable = True`.
+- **Follow-time seconds from stalk**: documented gap (personality cycle only).
+- **Road test on SunnyTesla**: none. Fingerprint + engage on device requires
+  CarPlatformBundle selection, alpha long, and flashed AP1 panda safety.
 
-## What did not transfer
+## Tests
 
-- No change to `opendbc_repo` or `panda`. No `TESLA_FLAG_AP1` in
-  `opendbc/safety/modes/tesla.h`. No TX allow for chassis `0x488` / `0x2b9` /
-  `0x349` on bus 0. No forward hook that lets stock Mobileye `0x488` and `0x2b9`
-  pass until openpilot substitutes them.
-- No `teslacan.py`, no DBC, no CAN parser, no carstate, no CarController, no
-  radar interface, no interface `_get_params`.
-- No panda firmware, no model weights.
-- No controlsd hands-pause wiring, no FrogPilot follow publisher, no UI,
-  including the BogPilot startup alert strings.
-- `preap` and `ap1_x` still have no fingerprint.
-- An AP1 car will not fingerprint as this platform on a device. The classifier
-  is library code until a later change adds a safety mode that does not alter
-  Model 3/Y.
+- `opendbc/safety/tests/test_tesla.py` (Model 3/Y unchanged)
+- `opendbc/safety/tests/test_tesla_ap1.py` (AP1 interceptor, flags, TX)
+- `opendbc/car/tesla` + car interface / docs / car_list
+- `openpilot/sunnypilot/selfdrive/car/tesla_ap1/tests`
 
-Do not treat a green unit test as permission to drive.
+## Engaging on a device (checklist, not a claim of safety)
+
+1. Install this `sunny-tesla` build.
+2. Flash panda built against the forked opendbc (AP1 safety).
+3. Select **Tesla AP1 Model S** in Vehicle settings.
+4. Enable Alpha Longitudinal.
+5. Confirm chassis fingerprint traffic includes `0x45` / `0x2b9` / `0x488`.
+
+Until those steps are done and a human road-tests, treat the car as **not**
+safe to engage.

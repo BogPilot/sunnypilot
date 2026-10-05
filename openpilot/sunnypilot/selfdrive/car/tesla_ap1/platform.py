@@ -1,7 +1,8 @@
 """Recognize an AP1 Model S chassis address set. No actuation.
 
-Not registered in opendbc FW_VERSIONS or FINGERPRINTS. sunnypilot's Tesla
-interface is Model 3/Y/X on the party bus. Calling this does not select it.
+Recognition helper. The live platform is CAR.TESLA_AP1_MODELS in opendbc,
+selected via CarPlatformBundle (fixed fingerprint). This classifier documents
+the chassis address set used to validate an AP1 car.
 """
 
 from dataclasses import dataclass
@@ -107,12 +108,11 @@ def classify_tesla_platform(fingerprint) -> TeslaPlatform | None:
 
 
 def long_control_allowed(platform: TeslaPlatform | None) -> bool:
-  """Recognition does not allow longitudinal commands.
+  """Legacy helper. Longitudinal is decided by CarInterface + alpha long.
 
-  False for every platform. Chassis 0x2b9 is not enabled by this helper.
+  Still False here so callers that only have a recognition result do not
+  enable long by themselves.
   """
-  if platform is None or isinstance(platform, TeslaPlatform):
-    return False
   return False
 
 

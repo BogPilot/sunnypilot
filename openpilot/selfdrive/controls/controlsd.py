@@ -115,8 +115,12 @@ class Controls(ControlsExt):
     # Get which state to use for active lateral control
     _lat_active = self.get_lat_active(self.sm)
 
+    # AP1 Model S only. steeringPressed is hands_on_level >= 2 (TinklaHandsOnLevel).
+    # Pauses path lateral and resets LaC. Does not change longActive.
+    ap1_hands_pause = bool(self.CP.flags & 0x100) and CS.steeringPressed  # TeslaFlags.AP1
+
     CC.latActive = _lat_active and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
-                   (not standstill or self.CP.steerAtStandstill)
+                   (not standstill or self.CP.steerAtStandstill) and not ap1_hands_pause
     CC.longActive = CC.enabled and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']) and \
                     (self.CP.openpilotLongitudinalControl or not self.CP_SP.pcmCruiseSpeed)
 
