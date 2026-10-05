@@ -12,7 +12,6 @@ from openpilot.common.swaglog import cloudlog
 
 from opendbc.car.car_helpers import interfaces
 from opendbc.car.vehicle_model import VehicleModel
-from opendbc.car.tesla.values import TeslaFlags
 from openpilot.selfdrive.controls.lib.drive_helpers import clip_curvature
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
@@ -116,12 +115,8 @@ class Controls(ControlsExt):
     # Get which state to use for active lateral control
     _lat_active = self.get_lat_active(self.sm)
 
-    # AP1 Model S only. steeringPressed is hands_on_level >= 2 (BogGyver/Tinkla TinklaHandsOnLevel).
-    # Pauses path lateral and resets LaC. Does not change longActive. CP.flags is per brand, so check the brand too.
-    ap1_hands_pause = self.CP.brand == "tesla" and bool(self.CP.flags & TeslaFlags.AP1) and CS.steeringPressed
-
     CC.latActive = _lat_active and not CS.steerFaultTemporary and not CS.steerFaultPermanent and \
-                   (not standstill or self.CP.steerAtStandstill) and not ap1_hands_pause
+                   (not standstill or self.CP.steerAtStandstill)
     CC.longActive = CC.enabled and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']) and \
                     (self.CP.openpilotLongitudinalControl or not self.CP_SP.pcmCruiseSpeed)
 

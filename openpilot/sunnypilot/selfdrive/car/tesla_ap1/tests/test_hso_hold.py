@@ -130,9 +130,18 @@ def test_other_codes_and_eac_fault_and_disengaged():
 
 def test_clip_is_measured_plus_20_not_a_model3_rate():
   plan = _plan(lat_active=True, requested_angle_deg=40.0, measured_angle_deg=0.0,
-               last_angle_deg=20.0, v_ego=0.0, epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+               last_angle_deg=20.0, v_ego=0.0, eac_status="EAC_ACTIVE")
   assert plan.steer.control_type == STEERING_CONTROL_ANGLE
   assert plan.steer.angle_deg == 20.0
+
+
+def test_latched_code_6_holds_toward_measured_wheel():
+  # BogPilot milestone 2: a latched code 6 commands ANGLE at the measured wheel (rate-limited from the last
+  # command), not the planner angle.
+  plan = _plan(lat_active=True, requested_angle_deg=40.0, measured_angle_deg=0.0,
+               last_angle_deg=20.0, v_ego=0.0, epas_error="EAC_ERROR_HIGH_ANGLE_REQ")
+  assert plan.steer.control_type == STEERING_CONTROL_ANGLE
+  assert 0.0 <= plan.steer.angle_deg < 20.0
 
 
 def test_hold_clear_and_acc_on():

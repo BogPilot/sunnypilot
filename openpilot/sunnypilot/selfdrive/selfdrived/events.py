@@ -260,4 +260,14 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
       AlertStatus.normal, AlertSize.small,
       Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 2.),
   },
+
+  # Tesla AP1 (BogPilot milestone 2 / Tinkla HSO): EPAS steer warning or EPAS INHIBITED while openpilot
+  # wants lateral. Warning only: no sound, no soft disable, cruise stays up.
+  EventNameSP.steerInactiveQuiet: {
+    ET.WARNING: Alert(
+      "Steering not active",
+      "",
+      AlertStatus.userPrompt, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.8),
+  },
 }

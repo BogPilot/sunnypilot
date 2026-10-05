@@ -10,6 +10,7 @@ import openpilot.cereal.messaging as messaging
 from openpilot.cereal import log, custom
 
 from opendbc.car import structs
+from opendbc.car.tesla.values import TeslaFlags
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot import PARAMS_UPDATE_PERIOD
@@ -30,6 +31,9 @@ class ControlsExt(ModelStateBase):
     cloudlog.info("controlsd_ext is waiting for CarParamsSP")
     self.CP_SP = messaging.log_from_bytes(params.get("CarParamsSP", block=True), custom.CarParamsSP)
     cloudlog.info("controlsd_ext got CarParamsSP")
+
+    # Tesla AP1 instrument cluster lane path (BogPilot milestone 2). CP.flags is per brand, so check the brand too.
+    self.tesla_ap1 = self.CP.brand == "tesla" and bool(self.CP.flags & TeslaFlags.AP1)
 
     self.sm_services_ext = ['radarState', 'selfdriveStateSP']
     self.pm_services_ext = ['carControlSP']
@@ -103,6 +107,13 @@ class ControlsExt(ModelStateBase):
     CC_SP.intelligentCruiseButtonManagement.state = icbm_src.state
     CC_SP.intelligentCruiseButtonManagement.sendButton = icbm_src.sendButton
     CC_SP.intelligentCruiseButtonManagement.vTarget = icbm_src.vTarget
+
+    # Tesla AP1: modelV2 path for the cluster lane (0x239). The car port fits C2 over the first 50 m.
+    if self.tesla_ap1 and sm.valid['modelV2'] and sm['selfdriveState'].enabled:
+      position = sm['modelV2'].position
+      if len(position.x) > 0 and len(position.x) == len(position.y):
+        CC_SP.modelPathX = list(position.x)
+        CC_SP.modelPathY = list(position.y)
 
     return CC_SP
 
