@@ -4,6 +4,7 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+from opendbc.car.tesla.values import TeslaFlags
 from opendbc.sunnypilot.car.tesla.values import TeslaFlagsSP
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.base import BrandSettings
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -26,7 +27,8 @@ class TeslaSettings(BrandSettings):
       param="TeslaMadsScreenButton",
       inline=False,
     )
-    self.items = [self.coop_steering_toggle, self.mads_screen_button]
+    self.ap1_ic_toggle = toggle_item_sp(tr("AP1 Instrument Cluster Integration"), "", param="TeslaAp1IcIntegration")
+    self.items = [self.coop_steering_toggle, self.mads_screen_button, self.ap1_ic_toggle]
 
   def update_settings(self):
     is_metric = ui_state.is_metric
@@ -64,3 +66,13 @@ class TeslaSettings(BrandSettings):
       mads_screen_button_desc = f"<b>{mads_screen_button_disabled_msg}</b><br><br>{mads_screen_button_desc}"
     self.mads_screen_button.set_description(mads_screen_button_desc)
     self.mads_screen_button.action_item.set_enabled(ui_state.is_offroad())
+
+    # AP1 Model S only: openpilot drives the cluster autosteer icon and lane path (0x399 / 0x389 / 0x239)
+    is_ap1 = ui_state.CP is not None and ui_state.CP.brand == "tesla" and bool(ui_state.CP.flags & TeslaFlags.AP1)
+    self.ap1_ic_toggle.set_visible(is_ap1)
+    ap1_ic_desc = tr("Show openpilot's state and planned path on the instrument cluster while engaged. " +
+                     "Off leaves the stock cluster frames untouched.")
+    if not ui_state.is_offroad():
+      ap1_ic_desc = f"<b>{coop_steering_disabled_msg}</b><br><br>{ap1_ic_desc}"
+    self.ap1_ic_toggle.set_description(ap1_ic_desc)
+    self.ap1_ic_toggle.action_item.set_enabled(ui_state.is_offroad())
