@@ -18,7 +18,7 @@ class TeslaPlatform(StrEnum):
   ap2 = "ap2"
 
 
-# Names from the FrogPilot/BogPilot tree. sunnypilot CAR has no AP1 member.
+# Names from the FrogPilot/BogPilot tree. opendbc CAR.TESLA_AP1_MODELS is the live platform.
 AP1_MODEL_S = "TESLA_AP1_MODELS"
 AP2_MODELS = "TESLA_AP2_MODELS"
 RAVEN = "TESLA_MODELS_RAVEN"
@@ -108,7 +108,7 @@ def classify_tesla_platform(fingerprint) -> TeslaPlatform | None:
 
 
 def long_control_allowed(platform: TeslaPlatform | None) -> bool:
-  """Legacy helper. Longitudinal is decided by CarInterface + alpha long.
+  """Legacy helper. Longitudinal is decided by the opendbc CarInterface (AP1: always openpilot long).
 
   Still False here so callers that only have a recognition result do not
   enable long by themselves.
