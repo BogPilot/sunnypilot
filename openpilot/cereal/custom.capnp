@@ -354,6 +354,7 @@ struct OnroadEventSP @0xda96579883444c35 {
     e2eChime @23;
     laneChangeRoadEdge @24;
     bigModelReady @25;
+    steerInactiveQuiet @26;
   }
 }
 
@@ -383,6 +384,10 @@ struct CarControlSP @0xa5cd762cd951a455 {
   leadOne @2 :LeadData;
   leadTwo @3 :LeadData;
   intelligentCruiseButtonManagement @4 :IntelligentCruiseButtonManagement;
+
+  # Tesla AP1 instrument cluster lane path (modelV2.position x/y), empty when not engaged
+  modelPathX @5 :List(Float32);
+  modelPathY @6 :List(Float32);
 
   struct Param {
     key @0 :Text;
@@ -447,6 +452,12 @@ struct BackupManagerSP @0xf98d843bfd7004a3 {
 
 struct CarStateSP @0xb86e6369214c01c8 {
   speedLimit @0 :Float32;
+
+  # Tesla AP1 (BogPilot milestone 2 port)
+  steerOverrideHold @1 :Bool;        # resume hold after a driver override: keep the override border
+  steerInactiveSilent @2 :Bool;      # EPAS INHIBITED ~1 s while openpilot wants lateral: quiet warning
+  personalityRequestValid @3 :Bool;  # stalk follow-distance detent maps to a personality
+  personalityRequest @4 :UInt8;      # LongitudinalPersonality value (0 aggressive, 1 standard, 2 relaxed)
 }
 
 struct LiveMapDataSP @0xf416ec09499d9d19 {
