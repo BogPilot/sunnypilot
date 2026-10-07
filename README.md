@@ -7,6 +7,10 @@
 Join the official sunnypilot community forum to stay up to date with all the latest features and be a part of shaping the future of sunnypilot!
 * https://community.sunnypilot.ai/
 
+## BogPilot / Tesla AP1
+
+BogPilot Tesla AP1 code is still in active development and has not been merged yet. **Do not install yet** until documentation has been updated.
+
 ## Documentation
 https://docs.sunnypilot.ai/ is your one stop shop for everything from features to installation to FAQ about the sunnypilot
 
